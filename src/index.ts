@@ -3,7 +3,19 @@ import { createCanvas, Image, loadImage } from 'canvas';
 import fetch from "node-fetch";
 import pixelmatch from 'pixelmatch';
 
-// Interface for image object to help with JSON to object conversion
+import * as db from'./db';
+import type { InsertPlayer, SelectPlayer, SelectItem, InsertItem, SelectPlayerItem, InsertPlayerItem } from './db/schema'; 
+import { count } from 'drizzle-orm';
+
+// Helper to extract data types from promises
+type UnwrapPromise<T> = T extends Promise<infer U> ? U : T
+type ItemData = UnwrapPromise<ReturnType<typeof db.getAllItemsData>>
+
+// Declaring Constants, so less calls are being made to the database
+// Items won't change unless I update the database, whereas players and playersItemsTable depends on incoming data
+const ITEMS: ItemData = await db.getAllItemsData()
+  
+// Interface for image object to help with JSON to Image Object conversion
 interface myImageObject {
   attachment: string;
   name: string;
@@ -22,7 +34,7 @@ interface myImageObject {
   title: string;
 }
 
-// Function to compare images using html element canvases. lhs is icoming from user. rhs is coming from database
+// Function to compare images using html canvases. lhs is a screenshot incoming from user. rhs is coming from database
 async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<number[]> {
   
   //Array of numbers of pixel difference comparison
@@ -57,8 +69,8 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
   const screenWidth = img1.width
   const screenHeight = img1.height
 
-  // 16 positions of screenshots with a resolution of 1920 x 1080
-  // FUTURE: Could caculate coordinates if png sent to chat != 1920 x 1080 ex x: screenWidth*0.84
+  // 16 hardcoded positions of screenshots with a resolution of 1920 x 1080
+  // FUTURE: Could caculate coordinates if png sent to chat != 1920 x 1080 ex x: screenWidth*0.84 &
   // Account for windowed mode and screen sizes with resolutions larger/smaller than 1920 x 1080
   const spots = [
    //First inventory row
@@ -120,7 +132,15 @@ client.once(Events.ClientReady, async (readyClient) => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
-  
+  //TESTING author
+  console.log(message.author.toString())
+  console.log(message.author.username.toString()) // original usename 
+  console.log(message.author.id.toString()) // id 
+  console.log(message.author.displayName) // current display name
+
+  // Check if user sending message is New. if True insert new user in db. if False do nothing.
+  await db.createPlayer(message.author.id, message.author.displayName)
+
   // Check if the message contains any attachments
   if (message.attachments.size > 0){
 
@@ -139,8 +159,19 @@ client.on(Events.MessageCreate, async (message) => {
       // Retrieving url key/value from image object and storing it
       const imgUrl: string = img["url"]
 
-      // Comparing images returning a number
-      await compareImages(imgUrl, "src\\Glife.png")
+      // Compare the 16 slots in the screenshot to every image in db
+      for(const item of ITEMS){ 
+
+        // Comparing images returning a number
+        const results: number[] = await compareImages(imgUrl, item.itemImage)
+
+        // Checking results for matching based on criteria ( 0 pixels different between images)
+        for(let ii = 0; ii < 16; ii++) {
+          if(results[ii] === 0) {
+            await db.addItemToPlayer(item.id, message.author.id)
+          }
+        }
+      }
     })
   }
 });

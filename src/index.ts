@@ -7,6 +7,7 @@ import * as db from'./db';
 import type { InsertPlayer, SelectPlayer, SelectItem, InsertItem, SelectPlayerItem, InsertPlayerItem } from './db/schema'; 
 import { count } from 'drizzle-orm';
 
+
 // Helper to extract data types from promises
 type UnwrapPromise<T> = T extends Promise<infer U> ? U : T
 type ItemData = UnwrapPromise<ReturnType<typeof db.getAllItemsData>>
@@ -161,6 +162,9 @@ client.on(Events.MessageCreate, async (message) => {
 
       // Compare the 16 slots in the screenshot to every image in db
       for(const item of ITEMS){ 
+        
+        //TESTING item.itemImage
+        console.log(item.itemImage)
 
         // Comparing images returning a number
         const results: number[] = await compareImages(imgUrl, item.itemImage)

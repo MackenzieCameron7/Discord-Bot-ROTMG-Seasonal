@@ -1,21 +1,25 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
 import { createCanvas, Image, loadImage } from 'canvas';
 import fetch from "node-fetch";
 import pixelmatch from 'pixelmatch';
-
 import * as db from'./db';
-import type { InsertPlayer, SelectPlayer, SelectItem, InsertItem, SelectPlayerItem, InsertPlayerItem } from './db/schema'; 
-import { count } from 'drizzle-orm';
-
 
 // Helper to extract data types from promises
 type UnwrapPromise<T> = T extends Promise<infer U> ? U : T
 type ItemData = UnwrapPromise<ReturnType<typeof db.getAllItemsData>>
+type PlayerData = UnwrapPromise<ReturnType<typeof db.getAllPlayersData>>
 
 // Declaring Constants, so less calls are being made to the database
-// Items won't change unless I update the database, whereas players and playersItemsTable depends on incoming data
+// Items won't change, whereas players and playersItemsTable depends on incoming data
 const ITEMS: ItemData = await db.getAllItemsData()
-  
+
+// Player interface to help sort PlayerData
+type Player = {
+  discordId: string;
+  discordName: string;
+  score: number;
+}
+
 // Interface for image object to help with JSON to Image Object conversion
 interface myImageObject {
   attachment: string;
@@ -119,6 +123,10 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
   return diffArray
 }
 
+// Slash Command
+const commandData = new SlashCommandBuilder()
+  .setName('bot')
+  .setDescription('Makes buttons appear from bot')
 
 const client = new Client({
   intents: [
@@ -130,7 +138,74 @@ const client = new Client({
 
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Logged in as ${readyClient.user?.tag}`);
+
+  const guildId = process.env.GUILD_ID
+  const guild = client.guilds.cache.get(guildId)
+  if (guild) {
+      await guild.commands.create(commandData)
+      console.log('Slash command registered.')
+  }
 });
+
+// HANDLE Commands
+client.on(Events.InteractionCreate, async (interaction) => {
+
+  if (!interaction.isChatInputCommand()){ return }
+
+  if (interaction.commandName === 'bot'){
+    //// Creating a buttons
+    const row = new ActionRowBuilder<ButtonBuilder>()
+
+    // LeaderBoard button
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId("leaderboard")
+        .setLabel("Leader Board")
+        .setStyle(ButtonStyle.Primary)
+    )
+    // List left button
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId("listRemaining")
+        .setLabel("Left to Get")
+        .setStyle(ButtonStyle.Success)
+    )
+    // Display buttons
+    await interaction.reply ({
+      content: "Click a button below",
+      components: [row],
+      withResponse: true
+    })
+  }
+})
+
+// HANDLE Buttons
+client.on(Events.InteractionCreate, async (interaction) => {
+
+  if (!interaction.isButton()){ return }
+
+  const PLAYERS: PlayerData = await db.getAllPlayersData()
+  // Leaderboard 
+  if (interaction.customId === "leaderboard"){
+
+    const playerScoreDesc : PlayerData = PLAYERS
+    // Sort Player data for score descending
+    playerScoreDesc.sort((a, b) => b.score - a.score)
+
+    // Formig output
+    let outLeaderboardMessage: string = "LeaderBoard: \n"
+    for(let ii = 0; ii < playerScoreDesc.length ; ii++){
+      outLeaderboardMessage += `${ii + 1}: ${playerScoreDesc[ii].discordName} score: ${playerScoreDesc[ii].score} \n`
+    }
+    interaction.reply(outLeaderboardMessage)
+    await interaction.message.delete()
+  }
+
+  // list of remaining items to get
+  if (interaction.customId === "listRemaining"){
+    interaction.reply("Not implemented yet... Pls hold.... New phone who dis??")
+  }
+})
 
 client.on(Events.MessageCreate, async (message) => {
   //TESTING author
@@ -139,8 +214,10 @@ client.on(Events.MessageCreate, async (message) => {
   console.log(message.author.id.toString()) // id 
   console.log(message.author.displayName) // current display name
 
-  // Check if user sending message is New. if True insert new user in db. if False do nothing.
-  await db.createPlayer(message.author.id, message.author.displayName)
+  // Check if user sending message is New or The bot itself. if True insert new user in db. if False do nothing.
+  if(!(message.author.id === process.env.DISCORD_BOT_ID)){
+    await db.createPlayer(message.author.id, message.author.displayName)
+  }
 
   // Check if the message contains any attachments
   if (message.attachments.size > 0){

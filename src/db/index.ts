@@ -34,6 +34,17 @@ export async function getAllItemsData() {
   return await db.select().from(itemTable)
 }
 
+// Getting All items owned by a player
+export async function getAllPlayersItems(discordId : string) {
+  await db.select().from(playersItemsTable)
+    .where(eq(playersItemsTable.discordId, discordId))
+}
+
+// Getting All Player data
+export async function getAllPlayersData() {
+  return await db.select().from(playersTable)
+}
+
 // Add item to player
 export async function addItemToPlayer(itemId: number, discordId: string) {
   

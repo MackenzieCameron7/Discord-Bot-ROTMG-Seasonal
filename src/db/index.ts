@@ -9,6 +9,16 @@ const client = createClient({
 });
 const db = drizzle(client, {schema});
 
+// Adding Items to db
+export async function addItemToDB(fileName: string, itemImage: string): Promise<void>{
+  const newItem = {
+    itemName: fileName,
+    itemPointValue: 0,
+    itemImage: itemImage,
+  }
+  await db.insert(itemTable).values(newItem)
+}
+
 // Creating a new Player
 export async function createPlayer(discordId: string, discordName: string): Promise<boolean> {
   let isNew = false
@@ -45,9 +55,19 @@ export async function getAllPlayersData() {
   return await db.select().from(playersTable)
 }
 
+// Return type
+type flagAndScore = {
+  flag: boolean,
+  totalScore: number,
+}
+// Extractable type
+type scoreObject = {
+  score: number
+}
 // Add item to player
-export async function addItemToPlayer(itemId: number, discordId: string) {
-  
+export async function addItemToPlayer(itemId: number, discordId: string): Promise<flagAndScore> {
+  let flag: flagAndScore = {flag: false, totalScore: 0}
+
   // Check if bridging table record already made and isAcquired is false
   const entryExists = await db.select().from(playersItemsTable)
   .where( 
@@ -59,7 +79,7 @@ export async function addItemToPlayer(itemId: number, discordId: string) {
   // Do nothing if it exists and itemsAcquired is True
   if (entryExists.length > 0 && entryExists[0].itemAcquired === 1) {
     console.log("Item is already acquired, skipping insertion")
-    return
+    return flag
   }
 
   // Make new entry & set itemsAcquired to True
@@ -82,5 +102,9 @@ export async function addItemToPlayer(itemId: number, discordId: string) {
   })
   .where(eq(playersTable.discordId, discordId))
 
-  console.log("Points Successfully attributted to the player")
+  const objectArray: scoreObject[] = (await db.select({ score: playersTable.score }).from(playersTable).where(eq(playersTable.discordId, discordId)))
+  flag.totalScore = objectArray[0].score
+  flag.flag = true
+  
+  return flag
 }

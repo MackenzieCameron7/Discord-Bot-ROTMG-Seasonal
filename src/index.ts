@@ -1,8 +1,9 @@
 import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
 import { createCanvas, Image, loadImage } from 'canvas';
-import fetch from "node-fetch";
 import pixelmatch from 'pixelmatch';
 import * as db from'./db';
+import fs from "fs"
+import path from "path"
 
 // Helper to extract data types from promises
 type UnwrapPromise<T> = T extends Promise<infer U> ? U : T
@@ -12,6 +13,16 @@ type PlayerData = UnwrapPromise<ReturnType<typeof db.getAllPlayersData>>
 // Declaring Constants, so less calls are being made to the database
 // Items won't change, whereas players and playersItemsTable depends on incoming data
 const ITEMS: ItemData = await db.getAllItemsData()
+
+// Inserting into DB
+//insertItem("src/assets")
+//console.log("items added to db")
+
+// Return type for adding item function
+type flagAndScore = {
+  flag: boolean,
+  totalScore: number,
+}
 
 // Player interface to help sort PlayerData
 type Player = {
@@ -47,8 +58,9 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
 
   // Loading images from the url extracted from image object
   const [img1, img2] = await Promise.all([loadImage(screenshotUrl), loadImage(dbUrl)])
+  
   // TESTING
-  console.log("Images loaded successfully")
+  //console.log("Images loaded successfully")
 
   // Checking spots from screenshot based on DIMENSIONS of images from db
   const width1 = img1.width
@@ -111,11 +123,11 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
     const numDiffPixels = pixelmatch(imgData1.data, imgData2.data, diff.data, width2, height2, { threshold: 0.1 })
 
     //TESTING
-    console.log(`Slot first pixel: R${imgData1.data[0]}, G${imgData1.data[1]}, B${imgData1.data[2]}`);
-    console.log(`Item first pixel: R${imgData2.data[0]}, G${imgData2.data[1]}, B${imgData2.data[2]}`);
+    //console.log(`Slot first pixel: R${imgData1.data[0]}, G${imgData1.data[1]}, B${imgData1.data[2]}`);
+    //console.log(`Item first pixel: R${imgData2.data[0]}, G${imgData2.data[1]}, B${imgData2.data[2]}`);
 
     //TESTING
-    console.log(numDiffPixels.toString())
+    //console.log(numDiffPixels.toString())
 
     diffArray.push(numDiffPixels)
   }
@@ -150,61 +162,63 @@ client.once(Events.ClientReady, async (readyClient) => {
 // HANDLE Commands
 client.on(Events.InteractionCreate, async (interaction) => {
 
-  if (!interaction.isChatInputCommand()){ return }
+  if (interaction.isChatInputCommand()){
 
-  if (interaction.commandName === 'bot'){
-    //// Creating a buttons
-    const row = new ActionRowBuilder<ButtonBuilder>()
+    if (interaction.commandName === 'bot'){
+      //// Creating a buttons
+      const row = new ActionRowBuilder<ButtonBuilder>()
 
-    // LeaderBoard button
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId("leaderboard")
-        .setLabel("Leader Board")
-        .setStyle(ButtonStyle.Primary)
-    )
-    // List left button
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId("listRemaining")
-        .setLabel("Left to Get")
-        .setStyle(ButtonStyle.Success)
-    )
-    // Display buttons
-    await interaction.reply ({
-      content: "Click a button below",
-      components: [row],
-      withResponse: true
-    })
+      // LeaderBoard button
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId("leaderboard")
+          .setLabel("Leader Board")
+          .setStyle(ButtonStyle.Primary)
+      )
+      // List left button
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId("listRemaining")
+          .setLabel("Left to Get")
+          .setStyle(ButtonStyle.Success)
+      )
+      // Display buttons
+      await interaction.reply ({
+        content: "Click a button below",
+        components: [row],
+        withResponse: true
+      })
+    }
   }
 })
 
 // HANDLE Buttons
 client.on(Events.InteractionCreate, async (interaction) => {
 
-  if (!interaction.isButton()){ return }
+  if (interaction.isButton()){
 
-  const PLAYERS: PlayerData = await db.getAllPlayersData()
-  // Leaderboard 
-  if (interaction.customId === "leaderboard"){
-
-    const playerScoreDesc : PlayerData = PLAYERS
-    // Sort Player data for score descending
-    playerScoreDesc.sort((a, b) => b.score - a.score)
-
-    // Formig output
-    let outLeaderboardMessage: string = "LeaderBoard: \n"
-    for(let ii = 0; ii < playerScoreDesc.length ; ii++){
-      outLeaderboardMessage += `${ii + 1}: ${playerScoreDesc[ii].discordName} score: ${playerScoreDesc[ii].score} \n`
-    }
-    interaction.reply(outLeaderboardMessage)
-    await interaction.message.delete()
-  }
-
-  // list of remaining items to get
-  if (interaction.customId === "listRemaining"){
-    interaction.reply("Not implemented yet... Pls hold.... New phone who dis??")
-  }
+    const PLAYERS: PlayerData = await db.getAllPlayersData()
+      // Leaderboard 
+      if (interaction.customId === "leaderboard"){
+      
+        const playerScoreDesc : PlayerData = PLAYERS
+        // Sort Player data for score descending
+        playerScoreDesc.sort((a, b) => b.score - a.score)
+      
+        // Formig output
+        let outLeaderboardMessage: string = "LeaderBoard: \n"
+        for(let ii = 0; ii < playerScoreDesc.length ; ii++){
+          outLeaderboardMessage += `${ii + 1}: ${playerScoreDesc[ii].discordName} score: ${playerScoreDesc[ii].score} \n`
+        }
+        interaction.reply(outLeaderboardMessage)
+        await interaction.message.delete()
+      }
+    
+      // list of remaining items to get
+      if (interaction.customId === "listRemaining"){
+        interaction.reply("Not implemented yet... Pls hold.... New phone who dis??")
+      }
+  } 
 })
 
 client.on(Events.MessageCreate, async (message) => {
@@ -226,7 +240,7 @@ client.on(Events.MessageCreate, async (message) => {
     message.attachments.forEach(async (attachment) => {
 
       //TESTING
-      console.log(attachment)
+      //console.log(attachment)
 
       // Convert attachment to JSON
       const imgJSON: unknown = await attachment.toJSON()
@@ -239,22 +253,34 @@ client.on(Events.MessageCreate, async (message) => {
 
       // Compare the 16 slots in the screenshot to every image in db
       for(const item of ITEMS){ 
-        
-        //TESTING item.itemImage
-        console.log(item.itemImage)
 
         // Comparing images returning a number
         const results: number[] = await compareImages(imgUrl, item.itemImage)
 
         // Checking results for matching based on criteria ( 0 pixels different between images)
         for(let ii = 0; ii < 16; ii++) {
-          if(results[ii] === 0) {
-            await db.addItemToPlayer(item.id, message.author.id)
+          if(results[ii] <= 71) {
+            const flagScore: flagAndScore = await db.addItemToPlayer(item.id, message.author.id)
+
+            if (flagScore.flag === true){
+              await message.reply(`${message.author.displayName} Acquired: ${item.itemName} for ${item.itemPointValue} points, bringing them to ${flagScore.totalScore} total points`)
+            }
           }
         }
       }
     })
   }
 });
+
+// Function to insert intems into DB
+async function insertItem(folderPath: string){
+  const files = fs.readdirSync(folderPath)
+
+  for(const file of files){
+    let pathToChange = `src/assets/${path.parse(file).name}.png`
+    const pathToImage = pathToChange.replace(/\//g, "\\\\")
+    await db.addItemToDB(path.parse(file).name, pathToImage)
+  }
+}
 
 await client.login(process.env.DISCORD_BOT_TOKEN);

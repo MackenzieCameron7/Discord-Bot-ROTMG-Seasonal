@@ -9,6 +9,7 @@ import path from "path"
 type UnwrapPromise<T> = T extends Promise<infer U> ? U : T
 type ItemData = UnwrapPromise<ReturnType<typeof db.getAllItemsData>>
 type PlayerData = UnwrapPromise<ReturnType<typeof db.getAllPlayersData>>
+type PlayerAcquiredItems = UnwrapPromise<ReturnType<typeof db.getAllPlayersItems>>
 
 // Declaring Constants, so less calls are being made to the database
 // Items won't change, whereas players and playersItemsTable depends on incoming data
@@ -178,8 +179,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       // List left button
       row.addComponents(
         new ButtonBuilder()
-          .setCustomId("listRemaining")
-          .setLabel("Left to Get")
+          .setCustomId("listAcquired")
+          .setLabel("Items Acquired")
           .setStyle(ButtonStyle.Success)
       )
       // Display buttons
@@ -215,8 +216,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     
       // list of remaining items to get
-      if (interaction.customId === "listRemaining"){
-        interaction.reply("Not implemented yet... Pls hold.... New phone who dis??")
+      if (interaction.customId === "listAcquired"){
+        const acquiredItems: PlayerAcquiredItems = await db.getAllPlayersItems(interaction.user.id)
+        let outAcquiredItemsMessage: string = "Items Acquired: \n"
+        for(const item of acquiredItems){
+          outAcquiredItemsMessage += ` - ${ITEMS.at(item.itemId -1)?.itemName} \n`
+        }
+        interaction.user.send(outAcquiredItemsMessage)
+        await interaction.message.delete()
       }
   } 
 })

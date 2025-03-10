@@ -6,6 +6,7 @@ import { sql, eq, and } from 'drizzle-orm';
 
 const client = createClient({
   url: process.env.DB_FILE_NAME!,
+  authToken: process.env.TURSO_TOKEN
 });
 const db = drizzle(client, {schema});
 
@@ -46,8 +47,7 @@ export async function getAllItemsData() {
 
 // Getting All items owned by a player
 export async function getAllPlayersItems(discordId : string) {
-  await db.select().from(playersItemsTable)
-    .where(eq(playersItemsTable.discordId, discordId))
+  return await db.select().from(playersItemsTable).where(eq(playersItemsTable.discordId, discordId))
 }
 
 // Getting All Player data

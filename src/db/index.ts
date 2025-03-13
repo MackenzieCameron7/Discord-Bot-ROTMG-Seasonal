@@ -12,12 +12,18 @@ const db = drizzle(client, {schema});
 
 // Adding Items to db
 export async function addItemToDB(fileName: string, itemImage: string): Promise<void>{
-  const newItem = {
-    itemName: fileName,
-    itemPointValue: 0,
-    itemImage: itemImage,
+
+  const existingItem = await db.select().from(itemTable).where(eq(itemTable.itemName, fileName))
+  if (!existingItem[0]){
+
+    const newItem = {
+      itemName: fileName,
+      itemPointValue: 0,
+      itemImage: itemImage,
+    }
+
+    await db.insert(itemTable).values(newItem)
   }
-  await db.insert(itemTable).values(newItem)
 }
 
 // Creating a new Player

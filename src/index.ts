@@ -1,5 +1,5 @@
 import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } from 'discord.js';
-import { createCanvas, Image, loadImage } from 'canvas';
+import { Canvas, createCanvas, Image, loadImage, ImageData} from 'canvas';
 import pixelmatch from 'pixelmatch';
 import * as db from'./db';
 import fs from "fs"
@@ -16,8 +16,8 @@ type PlayerAcquiredItems = UnwrapPromise<ReturnType<typeof db.getAllPlayersItems
 const ITEMS: ItemData = await db.getAllItemsData()
 
 // Inserting into DB
-//insertItem("src/assets")
-//console.log("items added to db")
+insertItem("src/assets")
+console.log("items added to db")
 
 // Return type for adding item function
 type flagAndScore = {
@@ -57,8 +57,8 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
   //Array of numbers of pixel difference comparison
   const diffArray: number[] = []
 
-  // Loading images from the url extracted from image object
-  const [img1, img2] = await Promise.all([loadImage(screenshotUrl), loadImage(dbUrl)])
+  // Loading image from the url extracted from image object
+  const [img1, img2] = await Promise.all([loadImage(screenshotUrl),loadImage(dbUrl)])
   
   // TESTING
   //console.log("Images loaded successfully")
@@ -83,14 +83,12 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
   const diffCanvas = createCanvas(width1, height1)
   const diffContext = diffCanvas.getContext("2d")
 
-  // Screenshot height and width
-  const screenWidth = img1.width
-  const screenHeight = img1.height
+  // Reference of 
+  const referenceWidth = 1920
+  const referenceHeight = 1080
 
-  // 16 hardcoded positions of screenshots with a resolution of 1920 x 1080
-  // FUTURE: Could caculate coordinates if png sent to chat != 1920 x 1080 ex x: screenWidth*0.84 &
-  // Account for windowed mode and screen sizes with resolutions larger/smaller than 1920 x 1080
-  const spots = [
+  // 16 hardcoded positions of screenshots with a resolution of 1920 x 1080 modified to account for different size screenshot
+  const referenceSpots = [
    //First inventory row
    {x: 1580, y: 688},
    {x: 1663, y: 688},
@@ -111,17 +109,21 @@ async function compareImages(screenshotUrl: string, dbUrl: string):  Promise<num
    {x: 1663, y: 996},
    {x: 1746, y: 996},
    {x: 1829, y: 996},
-  ]   
+  ] 
   
   // Compare each inventory slot in screenshot to rhs
-  for (const {x, y} of spots){
+  for (let {x, y} of referenceSpots){
+
+    //TESTING
+    //console.log(x.toString())
+    //console.log(y.toString())
 
     // Getting pixel data from images
     const imgData1 = context1.getImageData(x, y, width2, height2)
     const imgData2 = context2.getImageData(0,0, width2, height2)
     const diff = diffContext.createImageData(width2, height2)
 
-    const numDiffPixels = pixelmatch(imgData1.data, imgData2.data, diff.data, width2, height2, { threshold: 0.1 })
+    const numDiffPixels = pixelmatch(imgData1.data, imgData2.data,  diff.data, width2, height2, { threshold: 0.1 , alpha: 1, }) 
 
     //TESTING
     //console.log(`Slot first pixel: R${imgData1.data[0]}, G${imgData1.data[1]}, B${imgData1.data[2]}`);
@@ -230,10 +232,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 client.on(Events.MessageCreate, async (message) => {
   //TESTING author
-  console.log(message.author.toString())
-  console.log(message.author.username.toString()) // original usename 
-  console.log(message.author.id.toString()) // id 
+  //console.log(message.author.toString())
+  //console.log(message.author.username.toString()) // original usename 
+  //console.log(message.author.id.toString()) // id 
   console.log(message.author.displayName) // current display name
+
+  const fetchedMessages = await message.channel.messages.fetch({ limit: 1 });
+  const latestMessage = fetchedMessages.first();
+
+  // Ensure we are processing ONLY the most recent message
+  if (!latestMessage || latestMessage.id !== message.id) return;
 
   // Check if user sending message is New or The bot itself. if True insert new user in db. if False do nothing.
   if(!(message.author.id === process.env.DISCORD_BOT_ID)){
@@ -281,6 +289,7 @@ client.on(Events.MessageCreate, async (message) => {
 
 // Function to insert intems into DB
 async function insertItem(folderPath: string){
+
   const files = fs.readdirSync(folderPath)
 
   for(const file of files){
